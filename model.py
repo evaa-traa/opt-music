@@ -197,8 +197,12 @@ def _patch_vendor_source(vendor_dir: Path) -> None:
     if cli_model_file.exists():
         original = cli_model_file.read_text(encoding="utf-8")
         patched = original.replace(
-            "torch.cuda.synchronize()",
             "if torch.cuda.is_available():\n                torch.cuda.synchronize()",
+            "# torch.cuda.synchronize()",
+        )
+        patched = patched.replace(
+            "torch.cuda.synchronize()",
+            "# torch.cuda.synchronize()",
         )
         if patched != original:
             cli_model_file.write_text(patched, encoding="utf-8")
