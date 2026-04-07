@@ -121,6 +121,32 @@ def _patch_model_yaml(model_dir: Path) -> None:
         yaml_path.write_text(patched, encoding="utf-8")
 
 
+def _patch_llm_source(content: str) -> str:
+    lines = content.splitlines()
+    patched_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if "chorus = chorus.to(self.chorus_embedding.weight.device)" in stripped:
+            continue
+
+        if stripped.startswith("chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)"):
+            indent = line[: len(line) - len(line.lstrip())]
+            patched_lines.append(f"{indent}chorus = chorus.to(self.chorus_embedding.weight.device)")
+            patched_lines.append(line)
+            continue
+
+        if stripped.startswith("chorus_embed = self.chorus_embedding(chorus)") and "reshape" not in stripped:
+            indent = line[: len(line) - len(line.lstrip())]
+            patched_lines.append(f"{indent}chorus = chorus.to(self.chorus_embedding.weight.device)")
+            patched_lines.append(line)
+            continue
+
+        patched_lines.append(line)
+
+    return "\n".join(patched_lines) + "\n"
+
+
 def _patch_vendor_source(vendor_dir: Path) -> None:
     qwen_encoder = vendor_dir / "inspiremusic" / "transformer" / "qwen_encoder.py"
     if not qwen_encoder.exists():
@@ -156,26 +182,7 @@ def _patch_vendor_source(vendor_dir: Path) -> None:
     llm_file = vendor_dir / "inspiremusic" / "llm" / "llm.py"
     if llm_file.exists():
         original = llm_file.read_text(encoding="utf-8")
-        patched = original.replace(
-            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)  # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)  # .half()",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus)  # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus)  # .half()",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus) # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus) # .half()",
-        )
+        patched = _patch_llm_source(original)
         if patched != original:
             llm_file.write_text(patched, encoding="utf-8")
 

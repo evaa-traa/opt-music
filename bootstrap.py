@@ -83,26 +83,24 @@ def patch_vendor_source() -> None:
     llm_file = VENDOR_DIR / "inspiremusic" / "llm" / "llm.py"
     if llm_file.exists():
         content = llm_file.read_text(encoding="utf-8")
-        patched = content.replace(
-            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)  # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)  # .half()",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus)  # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus)  # .half()",
-        )
-        patched = patched.replace(
-            "chorus_embed = self.chorus_embedding(chorus) # .half()",
-            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus) # .half()",
-        )
+        lines = content.splitlines()
+        patched_lines: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if "chorus = chorus.to(self.chorus_embedding.weight.device)" in stripped:
+                continue
+            if stripped.startswith("chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)"):
+                indent = line[: len(line) - len(line.lstrip())]
+                patched_lines.append(f"{indent}chorus = chorus.to(self.chorus_embedding.weight.device)")
+                patched_lines.append(line)
+                continue
+            if stripped.startswith("chorus_embed = self.chorus_embedding(chorus)") and "reshape" not in stripped:
+                indent = line[: len(line) - len(line.lstrip())]
+                patched_lines.append(f"{indent}chorus = chorus.to(self.chorus_embedding.weight.device)")
+                patched_lines.append(line)
+                continue
+            patched_lines.append(line)
+        patched = "\n".join(patched_lines) + "\n"
         if patched != content:
             llm_file.write_text(patched, encoding="utf-8")
 
