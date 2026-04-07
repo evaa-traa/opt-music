@@ -124,12 +124,20 @@ def _patch_model_yaml(model_dir: Path) -> None:
 def _patch_vendor_source(vendor_dir: Path) -> None:
     qwen_encoder = vendor_dir / "inspiremusic" / "transformer" / "qwen_encoder.py"
     if not qwen_encoder.exists():
-        return
+        qwen_encoder = None
 
-    original = qwen_encoder.read_text(encoding="utf-8")
-    patched = original.replace('attn_implementation="flash_attention_2"', 'attn_implementation="sdpa"')
-    if patched != original:
-        qwen_encoder.write_text(patched, encoding="utf-8")
+    if qwen_encoder is not None:
+        original = qwen_encoder.read_text(encoding="utf-8")
+        patched = original.replace('attn_implementation="flash_attention_2"', 'attn_implementation="sdpa"')
+        if patched != original:
+            qwen_encoder.write_text(patched, encoding="utf-8")
+
+    vqvae_file = vendor_dir / "inspiremusic" / "music_tokenizer" / "vqvae.py"
+    if vqvae_file.exists():
+        original = vqvae_file.read_text(encoding="utf-8")
+        patched = original.replace("ckpt = torch.load(ckpt_path)", "ckpt = torch.load(ckpt_path, map_location='cpu')")
+        if patched != original:
+            vqvae_file.write_text(patched, encoding="utf-8")
 
 
 def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:

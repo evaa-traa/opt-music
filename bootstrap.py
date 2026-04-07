@@ -59,6 +59,13 @@ def patch_vendor_source() -> None:
         if patched != content:
             qwen_encoder.write_text(patched, encoding="utf-8")
 
+    vqvae_file = VENDOR_DIR / "inspiremusic" / "music_tokenizer" / "vqvae.py"
+    if vqvae_file.exists():
+        content = vqvae_file.read_text(encoding="utf-8")
+        patched = content.replace("ckpt = torch.load(ckpt_path)", "ckpt = torch.load(ckpt_path, map_location='cpu')")
+        if patched != content:
+            vqvae_file.write_text(patched, encoding="utf-8")
+
 
 def patch_model_yaml(model_dir: Path) -> None:
     yaml_path = model_dir / "inspiremusic.yaml"
