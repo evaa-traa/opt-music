@@ -96,9 +96,29 @@ def _patch_model_yaml(model_dir: Path) -> None:
         return
 
     original = yaml_path.read_text(encoding="utf-8")
+    model_name = model_dir.name
     patched = original.replace("../../", "")
+    patched = patched.replace(
+        f"pretrained_models/{model_name}/",
+        f"{model_dir.as_posix()}/",
+    )
+    patched = patched.replace(
+        f"pretrained_models/{model_name}/music_tokenizer",
+        f"{(model_dir / 'music_tokenizer').as_posix()}",
+    )
     if patched != original:
         yaml_path.write_text(patched, encoding="utf-8")
+
+
+def _patch_vendor_source(vendor_dir: Path) -> None:
+    qwen_encoder = vendor_dir / "inspiremusic" / "transformer" / "qwen_encoder.py"
+    if not qwen_encoder.exists():
+        return
+
+    original = qwen_encoder.read_text(encoding="utf-8")
+    patched = original.replace('attn_implementation="flash_attention_2"', 'attn_implementation="sdpa"')
+    if patched != original:
+        qwen_encoder.write_text(patched, encoding="utf-8")
 
 
 def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:
@@ -106,6 +126,7 @@ def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:
     vendor_dir.parent.mkdir(parents=True, exist_ok=True)
 
     if vendor_dir.exists():
+        _patch_vendor_source(vendor_dir)
         return vendor_dir
 
     try:
@@ -120,6 +141,7 @@ def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:
     except subprocess.CalledProcessError as exc:
         raise RuntimeSetupError(exc.stderr.strip() or "Failed to clone InspireMusic repository.") from exc
 
+    _patch_vendor_source(vendor_dir)
     return vendor_dir
 
 

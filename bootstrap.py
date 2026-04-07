@@ -43,8 +43,37 @@ def clone_vendor_repo(code_repo: str) -> None:
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     if VENDOR_DIR.exists():
         run(["git", "submodule", "update", "--init", "--recursive"], cwd=VENDOR_DIR)
+        patch_vendor_source()
         return
     run(["git", "clone", "--recursive", code_repo, str(VENDOR_DIR)])
+    patch_vendor_source()
+
+
+def patch_vendor_source() -> None:
+    qwen_encoder = VENDOR_DIR / "inspiremusic" / "transformer" / "qwen_encoder.py"
+    if qwen_encoder.exists():
+        content = qwen_encoder.read_text(encoding="utf-8")
+        patched = content.replace('attn_implementation="flash_attention_2"', 'attn_implementation="sdpa"')
+        if patched != content:
+            qwen_encoder.write_text(patched, encoding="utf-8")
+
+
+def patch_model_yaml(model_dir: Path) -> None:
+    yaml_path = model_dir / "inspiremusic.yaml"
+    if not yaml_path.exists():
+        return
+
+    content = yaml_path.read_text(encoding="utf-8")
+    replacements = {
+        "../../": "",
+        "pretrained_models/InspireMusic-Base-24kHz/": f"{model_dir.as_posix()}/",
+        "pretrained_models/InspireMusic-Base-24kHz/music_tokenizer": f"{(model_dir / 'music_tokenizer').as_posix()}",
+    }
+    patched = content
+    for source, target in replacements.items():
+        patched = patched.replace(source, target)
+    if patched != content:
+        yaml_path.write_text(patched, encoding="utf-8")
 
 
 def _build_filtered_vendor_requirements() -> Path:
@@ -96,12 +125,7 @@ def download_model(model_repo: str) -> None:
     if not any(model_dir.iterdir()):
         snapshot_download(repo_id=model_repo, local_dir=str(model_dir))
 
-    yaml_path = model_dir / "inspiremusic.yaml"
-    if yaml_path.exists():
-        content = yaml_path.read_text(encoding="utf-8")
-        patched = content.replace("../../", "")
-        if patched != content:
-            yaml_path.write_text(patched, encoding="utf-8")
+    patch_model_yaml(model_dir)
 
 
 def parse_args() -> argparse.Namespace:
