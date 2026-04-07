@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import numpy as np
 import torch
+import torch.nn as nn
 import huggingface_hub
 from huggingface_hub import snapshot_download
 
@@ -121,32 +122,6 @@ def _patch_model_yaml(model_dir: Path) -> None:
         yaml_path.write_text(patched, encoding="utf-8")
 
 
-def _patch_llm_source(content: str) -> str:
-    lines = content.splitlines()
-    patched_lines: list[str] = []
-
-    for line in lines:
-        stripped = line.strip()
-        if "chorus = chorus.to(self.chorus_embedding.weight.device)" in stripped:
-            continue
-
-        if stripped.startswith("chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)"):
-            indent = line[: len(line) - len(line.lstrip())]
-            patched_lines.append(f"{indent}chorus = chorus.to(self.chorus_embedding.weight.device)")
-            patched_lines.append(line)
-            continue
-
-        if stripped.startswith("chorus_embed = self.chorus_embedding(chorus)") and "reshape" not in stripped:
-            indent = line[: len(line) - len(line.lstrip())]
-            patched_lines.append(f"{indent}chorus = chorus.to(self.chorus_embedding.weight.device)")
-            patched_lines.append(line)
-            continue
-
-        patched_lines.append(line)
-
-    return "\n".join(patched_lines) + "\n"
-
-
 def _patch_vendor_source(vendor_dir: Path) -> None:
     qwen_encoder = vendor_dir / "inspiremusic" / "transformer" / "qwen_encoder.py"
     if not qwen_encoder.exists():
@@ -179,12 +154,48 @@ def _patch_vendor_source(vendor_dir: Path) -> None:
         if patched != original:
             processor_file.write_text(patched, encoding="utf-8")
 
-    llm_file = vendor_dir / "inspiremusic" / "llm" / "llm.py"
-    if llm_file.exists():
-        original = llm_file.read_text(encoding="utf-8")
-        patched = _patch_llm_source(original)
-        if patched != original:
-            llm_file.write_text(patched, encoding="utf-8")
+class DeviceSafeEmbedding(nn.Module):
+    def __init__(self, embedding: nn.Embedding) -> None:
+        super().__init__()
+        self.embedding = embedding
+
+    @property
+    def weight(self):
+        return self.embedding.weight
+
+    def forward(self, indices):
+        if hasattr(indices, "to"):
+            indices = indices.to(self.embedding.weight.device)
+        return self.embedding(indices)
+
+
+def _patch_chorus_embedding_runtime(obj, visited: set[int] | None = None) -> None:
+    if visited is None:
+        visited = set()
+
+    obj_id = id(obj)
+    if obj_id in visited:
+        return
+    visited.add(obj_id)
+
+    if isinstance(obj, nn.Module):
+        for name, child in list(obj.named_children()):
+            if name == "chorus_embedding" and isinstance(child, nn.Embedding):
+                setattr(obj, name, DeviceSafeEmbedding(child))
+                continue
+            _patch_chorus_embedding_runtime(child, visited)
+
+    for attr_name in dir(obj):
+        if attr_name.startswith("_"):
+            continue
+        try:
+            attr_value = getattr(obj, attr_name)
+        except Exception:
+            continue
+        if isinstance(attr_value, (str, bytes, int, float, bool, Path, type(None))):
+            continue
+        if hasattr(attr_value, "__dict__") or isinstance(attr_value, nn.Module):
+            _patch_chorus_embedding_runtime(attr_value, visited)
 
 
 def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:
@@ -267,6 +278,7 @@ class InspireMusicGenerator:
             fast=True,
             result_dir=str(self.output_dir),
         )
+        _patch_chorus_embedding_runtime(self.model)
 
     def _build_prompt(self, prompt: str) -> str:
         cleaned = " ".join(prompt.strip().split())
