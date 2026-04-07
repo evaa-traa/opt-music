@@ -84,6 +84,29 @@ def _patch_torch_embedding_device_mismatch() -> None:
     F.embedding = safe_embedding  # type: ignore[assignment]
 
 
+def _patch_torch_concat_device_mismatch() -> None:
+    if getattr(torch.cat, "_opt_music_patched", False):
+        return
+
+    original_cat = torch.cat
+    original_concat = torch.concat
+
+    def safe_cat(tensors, *args, **kwargs):
+        tensor_list = list(tensors)
+        devices = [tensor.device for tensor in tensor_list if hasattr(tensor, "device")]
+        if devices:
+            target_device = devices[0]
+            tensor_list = [
+                tensor.to(target_device) if hasattr(tensor, "device") and tensor.device != target_device else tensor
+                for tensor in tensor_list
+            ]
+        return original_cat(tensor_list, *args, **kwargs)
+
+    safe_cat._opt_music_patched = True  # type: ignore[attr-defined]
+    torch.cat = safe_cat  # type: ignore[assignment]
+    torch.concat = safe_cat  # type: ignore[assignment]
+
+
 def _patch_huggingface_hub_compat() -> None:
     if hasattr(huggingface_hub, "cached_download"):
         return
@@ -260,6 +283,7 @@ class InspireMusicGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         _patch_torch_embedding_device_mismatch()
+        _patch_torch_concat_device_mismatch()
         self.vendor_dir = ensure_code_checkout()
         self.model_dir = ensure_model_snapshot(model_repo)
         self.InspireMusicModel, self.env_variables = _load_inspiremusic_classes()
