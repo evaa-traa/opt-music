@@ -80,6 +80,16 @@ def patch_vendor_source() -> None:
         if patched != content:
             processor_file.write_text(patched, encoding="utf-8")
 
+    cli_model_file = VENDOR_DIR / "inspiremusic" / "cli" / "model.py"
+    if cli_model_file.exists():
+        content = cli_model_file.read_text(encoding="utf-8")
+        patched = content.replace(
+            "torch.cuda.synchronize()",
+            "if torch.cuda.is_available():\n                torch.cuda.synchronize()",
+        )
+        if patched != content:
+            cli_model_file.write_text(patched, encoding="utf-8")
+
 
 
 def patch_model_yaml(model_dir: Path) -> None:
