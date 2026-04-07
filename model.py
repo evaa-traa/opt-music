@@ -157,8 +157,20 @@ def _patch_vendor_source(vendor_dir: Path) -> None:
     if llm_file.exists():
         original = llm_file.read_text(encoding="utf-8")
         patched = original.replace(
+            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)  # .half()",
+            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)  # .half()",
+        )
+        patched = patched.replace(
             "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
             "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
+        )
+        patched = patched.replace(
+            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)",
+            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1)",
+        )
+        patched = patched.replace(
+            "chorus_embed = self.chorus_embedding(chorus)  # .half()",
+            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus)  # .half()",
         )
         patched = patched.replace(
             "chorus_embed = self.chorus_embedding(chorus) # .half()",
