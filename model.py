@@ -153,6 +153,20 @@ def _patch_vendor_source(vendor_dir: Path) -> None:
         if patched != original:
             processor_file.write_text(patched, encoding="utf-8")
 
+    llm_file = vendor_dir / "inspiremusic" / "llm" / "llm.py"
+    if llm_file.exists():
+        original = llm_file.read_text(encoding="utf-8")
+        patched = original.replace(
+            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
+            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
+        )
+        patched = patched.replace(
+            "chorus_embed = self.chorus_embedding(chorus) # .half()",
+            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus) # .half()",
+        )
+        if patched != original:
+            llm_file.write_text(patched, encoding="utf-8")
+
 
 def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:
     vendor_dir = _vendor_root()

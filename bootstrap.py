@@ -80,6 +80,20 @@ def patch_vendor_source() -> None:
         if patched != content:
             processor_file.write_text(patched, encoding="utf-8")
 
+    llm_file = VENDOR_DIR / "inspiremusic" / "llm" / "llm.py"
+    if llm_file.exists():
+        content = llm_file.read_text(encoding="utf-8")
+        patched = content.replace(
+            "chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
+            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus).reshape(1, 1, -1) # .half()",
+        )
+        patched = patched.replace(
+            "chorus_embed = self.chorus_embedding(chorus) # .half()",
+            "chorus = chorus.to(self.chorus_embedding.weight.device)\n            chorus_embed = self.chorus_embedding(chorus) # .half()",
+        )
+        if patched != content:
+            llm_file.write_text(patched, encoding="utf-8")
+
 
 def patch_model_yaml(model_dir: Path) -> None:
     yaml_path = model_dir / "inspiremusic.yaml"
