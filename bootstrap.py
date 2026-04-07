@@ -6,6 +6,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -15,6 +16,12 @@ VENDOR_DIR = RUNTIME_DIR / "InspireMusic"
 MODELS_DIR = PROJECT_ROOT / ".models"
 DEFAULT_CODE_REPO = os.getenv("INSPIREMUSIC_CODE_REPO", "https://github.com/FunAudioLLM/InspireMusic.git")
 DEFAULT_MODEL_REPO = os.getenv("INSPIREMUSIC_MODEL_REPO", "FunAudioLLM/InspireMusic-Base-24kHz")
+SKIP_VENDOR_PACKAGES = {
+    "deepspeed",
+    "flash-attn",
+    "onnxruntime",
+    "onnxruntime-gpu",
+}
 
 
 def run(command: list[str], cwd: Path | None = None) -> None:
@@ -40,13 +47,42 @@ def clone_vendor_repo(code_repo: str) -> None:
     run(["git", "clone", "--recursive", code_repo, str(VENDOR_DIR)])
 
 
+def _build_filtered_vendor_requirements() -> Path:
+    source = VENDOR_DIR / "requirements.txt"
+    if not source.exists():
+        raise SystemExit("Upstream InspireMusic requirements.txt is missing.")
+
+    filtered_lines: list[str] = []
+    for raw_line in source.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        package_name = line.split("==")[0].split(">=")[0].split("<=")[0].strip()
+        if package_name in SKIP_VENDOR_PACKAGES:
+            continue
+        filtered_lines.append(line)
+
+    filtered_lines.extend(
+        [
+            "huggingface-hub>=0.36.0,<1.0.0",
+            "transformers==4.46.3",
+        ]
+    )
+
+    handle = tempfile.NamedTemporaryFile("w", suffix="-opt-music-vendor.txt", delete=False, encoding="utf-8")
+    with handle:
+        handle.write("\n".join(filtered_lines))
+        handle.write("\n")
+    return Path(handle.name)
+
+
 def install_python_packages() -> None:
     run([sys.executable, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"])
     run([sys.executable, "-m", "pip", "install", "-r", str(PROJECT_ROOT / "requirements.txt")])
 
-    vendor_requirements = VENDOR_DIR / "requirements.txt"
-    if vendor_requirements.exists():
-        run([sys.executable, "-m", "pip", "install", "-r", str(vendor_requirements)])
+    filtered_requirements = _build_filtered_vendor_requirements()
+    run([sys.executable, "-m", "pip", "uninstall", "-y", "transformers"])
+    run([sys.executable, "-m", "pip", "install", "-r", str(filtered_requirements)])
 
     run([sys.executable, "-m", "pip", "install", "-e", str(VENDOR_DIR)])
 
