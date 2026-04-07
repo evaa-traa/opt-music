@@ -77,7 +77,7 @@ def _patch_torch_embedding_device_mismatch() -> None:
 
     def safe_embedding(weight, indices, *args, **kwargs):
         if hasattr(indices, "device") and hasattr(weight, "device") and indices.device != weight.device:
-            indices = indices.to(weight.device)
+            weight = weight.to(indices.device)
         return original_embedding(weight, indices, *args, **kwargs)
 
     safe_embedding._opt_music_patched = True  # type: ignore[attr-defined]
