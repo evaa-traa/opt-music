@@ -15,6 +15,7 @@ from uuid import uuid4
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import huggingface_hub
 from huggingface_hub import snapshot_download
 
@@ -66,6 +67,21 @@ class GenerationResult:
 
 class RuntimeSetupError(RuntimeError):
     pass
+
+
+def _patch_torch_embedding_device_mismatch() -> None:
+    if getattr(F.embedding, "_opt_music_patched", False):
+        return
+
+    original_embedding = F.embedding
+
+    def safe_embedding(weight, indices, *args, **kwargs):
+        if hasattr(indices, "device") and hasattr(weight, "device") and indices.device != weight.device:
+            indices = indices.to(weight.device)
+        return original_embedding(weight, indices, *args, **kwargs)
+
+    safe_embedding._opt_music_patched = True  # type: ignore[attr-defined]
+    F.embedding = safe_embedding  # type: ignore[assignment]
 
 
 def _patch_huggingface_hub_compat() -> None:
@@ -243,6 +259,7 @@ class InspireMusicGenerator:
         self.output_dir = _output_root()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        _patch_torch_embedding_device_mismatch()
         self.vendor_dir = ensure_code_checkout()
         self.model_dir = ensure_model_snapshot(model_repo)
         self.InspireMusicModel, self.env_variables = _load_inspiremusic_classes()
