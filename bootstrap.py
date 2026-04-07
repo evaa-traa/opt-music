@@ -81,8 +81,8 @@ def install_python_packages() -> None:
     run([sys.executable, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"])
     run([sys.executable, "-m", "pip", "install", "-r", str(PROJECT_ROOT / "requirements.txt")])
 
+    run([sys.executable, "-m", "pip", "uninstall", "-y", "torchao", "transformers"])
     filtered_requirements = _build_filtered_vendor_requirements()
-    run([sys.executable, "-m", "pip", "uninstall", "-y", "transformers"])
     run([sys.executable, "-m", "pip", "install", "-r", str(filtered_requirements)])
 
 
