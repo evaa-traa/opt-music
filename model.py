@@ -139,6 +139,16 @@ def _patch_vendor_source(vendor_dir: Path) -> None:
         if patched != original:
             vqvae_file.write_text(patched, encoding="utf-8")
 
+    processor_file = vendor_dir / "inspiremusic" / "dataset" / "processor.py"
+    if processor_file.exists():
+        original = processor_file.read_text(encoding="utf-8")
+        patched = original.replace(
+            "torchaudio.set_audio_backend('soundfile')",
+            "if hasattr(torchaudio, 'set_audio_backend'):\n    torchaudio.set_audio_backend('soundfile')",
+        )
+        if patched != original:
+            processor_file.write_text(patched, encoding="utf-8")
+
 
 def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:
     vendor_dir = _vendor_root()

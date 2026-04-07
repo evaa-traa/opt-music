@@ -66,6 +66,16 @@ def patch_vendor_source() -> None:
         if patched != content:
             vqvae_file.write_text(patched, encoding="utf-8")
 
+    processor_file = VENDOR_DIR / "inspiremusic" / "dataset" / "processor.py"
+    if processor_file.exists():
+        content = processor_file.read_text(encoding="utf-8")
+        patched = content.replace(
+            "torchaudio.set_audio_backend('soundfile')",
+            "if hasattr(torchaudio, 'set_audio_backend'):\n    torchaudio.set_audio_backend('soundfile')",
+        )
+        if patched != content:
+            processor_file.write_text(patched, encoding="utf-8")
+
 
 def patch_model_yaml(model_dir: Path) -> None:
     yaml_path = model_dir / "inspiremusic.yaml"
