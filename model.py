@@ -170,32 +170,13 @@ class DeviceSafeEmbedding(nn.Module):
 
 
 def _patch_chorus_embedding_runtime(obj, visited: set[int] | None = None) -> None:
-    if visited is None:
-        visited = set()
-
-    obj_id = id(obj)
-    if obj_id in visited:
+    if not isinstance(obj, nn.Module):
         return
-    visited.add(obj_id)
 
-    if isinstance(obj, nn.Module):
-        for name, child in list(obj.named_children()):
+    for module in obj.modules():
+        for name, child in list(module.named_children()):
             if name == "chorus_embedding" and isinstance(child, nn.Embedding):
-                setattr(obj, name, DeviceSafeEmbedding(child))
-                continue
-            _patch_chorus_embedding_runtime(child, visited)
-
-    for attr_name in dir(obj):
-        if attr_name.startswith("_"):
-            continue
-        try:
-            attr_value = getattr(obj, attr_name)
-        except Exception:
-            continue
-        if isinstance(attr_value, (str, bytes, int, float, bool, Path, type(None))):
-            continue
-        if hasattr(attr_value, "__dict__") or isinstance(attr_value, nn.Module):
-            _patch_chorus_embedding_runtime(attr_value, visited)
+                setattr(module, name, DeviceSafeEmbedding(child))
 
 
 def ensure_code_checkout(code_repo: str = DEFAULT_CODE_REPO) -> Path:
