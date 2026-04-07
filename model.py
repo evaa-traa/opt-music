@@ -143,8 +143,12 @@ def _patch_vendor_source(vendor_dir: Path) -> None:
     if processor_file.exists():
         original = processor_file.read_text(encoding="utf-8")
         patched = original.replace(
-            "torchaudio.set_audio_backend('soundfile')",
             "if hasattr(torchaudio, 'set_audio_backend'):\n    torchaudio.set_audio_backend('soundfile')",
+            "# torchaudio.set_audio_backend('soundfile')",
+        )
+        patched = patched.replace(
+            "torchaudio.set_audio_backend('soundfile')",
+            "# torchaudio.set_audio_backend('soundfile')",
         )
         if patched != original:
             processor_file.write_text(patched, encoding="utf-8")
