@@ -18,9 +18,11 @@ DEFAULT_CODE_REPO = os.getenv("INSPIREMUSIC_CODE_REPO", "https://github.com/FunA
 DEFAULT_MODEL_REPO = os.getenv("INSPIREMUSIC_MODEL_REPO", "FunAudioLLM/InspireMusic-Base-24kHz")
 SKIP_VENDOR_PACKAGES = {
     "deepspeed",
+    "diffusers",
     "flash-attn",
     "onnxruntime",
     "onnxruntime-gpu",
+    "peft",
 }
 
 
@@ -93,7 +95,9 @@ def _build_filtered_vendor_requirements() -> Path:
 
     filtered_lines.extend(
         [
+            "diffusers==0.27.2",
             "huggingface-hub>=0.36.0,<1.0.0",
+            "peft>=0.17.0,<1.0.0",
             "protobuf>=5.26.1,<6.0.0",
             "transformers==4.46.3",
         ]
@@ -110,7 +114,7 @@ def install_python_packages() -> None:
     run([sys.executable, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"])
     run([sys.executable, "-m", "pip", "install", "-r", str(PROJECT_ROOT / "requirements.txt")])
 
-    run([sys.executable, "-m", "pip", "uninstall", "-y", "torchao", "transformers"])
+    run([sys.executable, "-m", "pip", "uninstall", "-y", "torchao", "transformers", "diffusers", "peft"])
     filtered_requirements = _build_filtered_vendor_requirements()
     run([sys.executable, "-m", "pip", "install", "-r", str(filtered_requirements)])
 
