@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import numpy as np
 import torch
+import huggingface_hub
 from huggingface_hub import snapshot_download
 
 from utils import TARGET_LUFS, apply_edge_fades, export_mp3, export_wav, load_audio, normalize_background_loudness, slugify
@@ -64,6 +65,16 @@ class GenerationResult:
 
 class RuntimeSetupError(RuntimeError):
     pass
+
+
+def _patch_huggingface_hub_compat() -> None:
+    if hasattr(huggingface_hub, "cached_download"):
+        return
+
+    def _cached_download(*args, **kwargs):
+        return huggingface_hub.hf_hub_download(*args, **kwargs)
+
+    huggingface_hub.cached_download = _cached_download
 
 
 def _project_root() -> Path:
@@ -158,6 +169,7 @@ def ensure_model_snapshot(model_repo: str = DEFAULT_MODEL_REPO) -> Path:
 
 @lru_cache(maxsize=1)
 def _load_inspiremusic_classes():
+    _patch_huggingface_hub_compat()
     vendor_dir = ensure_code_checkout()
     matcha_dir = vendor_dir / "third_party" / "Matcha-TTS"
 
