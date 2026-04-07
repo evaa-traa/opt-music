@@ -65,6 +65,7 @@ def _build_filtered_vendor_requirements() -> Path:
     filtered_lines.extend(
         [
             "huggingface-hub>=0.36.0,<1.0.0",
+            "protobuf>=5.26.1,<6.0.0",
             "transformers==4.46.3",
         ]
     )
@@ -83,8 +84,6 @@ def install_python_packages() -> None:
     filtered_requirements = _build_filtered_vendor_requirements()
     run([sys.executable, "-m", "pip", "uninstall", "-y", "transformers"])
     run([sys.executable, "-m", "pip", "install", "-r", str(filtered_requirements)])
-
-    run([sys.executable, "-m", "pip", "install", "-e", str(VENDOR_DIR)])
 
 
 def download_model(model_repo: str) -> None:
